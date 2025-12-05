@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>True Talk</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        dark: {
+                            bg: '#121212',
+                            card: '#1e1e1e',
+                            text: '#e0e0e0',
+                            input: '#2c2c2c'
+                        },
+                        brand: {
+                            accent: '#3b82f6', // Blue-500
+                            like: '#ef4444',   // Red-500
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            transition: background-color 0.3s, color 0.3s;
+        }
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #121212; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #333; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555; 
+        }
+        .modal-enter {
+            opacity: 0;
+            transform: scale(0.95);
+        }
+        .modal-enter-active {
+            opacity: 1;
+            transform: scale(1);
+            transition: opacity 0.2s, transform 0.2s;
+        }
+        .loader {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3b82f6;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-dark-bg text-dark-text min-h-screen flex flex-col font-sans overflow-hidden">
+
+    <!-- App Container -->
+    <div id="app" class="flex flex-col h-full max-w-md mx-auto w-full bg-dark-bg border-x border-gray-800 relative shadow-2xl">
+        
+        <!-- Header -->
+        <header class="flex justify-between items-center p-4 border-b border-gray-800 sticky top-0 bg-dark-bg/95 backdrop-blur z-10">
+            <div class="flex items-center gap-2" onclick="window.scrollTo({top:0, behavior:'smooth'})">
+                <i class="fa-solid fa-ghost text-brand-accent text-xl"></i>
+                <h1 class="text-xl font-bold tracking-wider">True Talk</h1>
+            </div>
+            <div class="flex items-center gap-3">
+                <button id="sortBtn" class="text-gray-400 hover:text-white transition p-2 rounded-full hover:bg-gray-800">
+                    <i class="fa-solid fa-arrow-down-wide-short"></i>
+                </button>
+                <div id="userStatus" class="cursor-pointer">
+                    <!-- Injected via JS -->
+                    <div class="animate-pulse w-16 h-8 bg-gray-800 rounded-full"></div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Sort Menu (Hidden by default) -->
+        <div id="sortMenu" class="hidden absolute top-16 right-4 bg-dark-card border border-gray-700 rounded-lg shadow-xl z-20 w-48 overflow-hidden">
+            <button onclick="feed.setSort('new')" class="w-full text-left px-4 py-3 hover:bg-gray-700 text-sm">🆕 Сначала новые</button>
+            <button onclick="feed.setSort('popular')" class="w-full text-left px-4 py-3 hover:bg-gray-700 text-sm">🔥 Популярные</button>
+            <button onclick="feed.setSort('old')" class="w-full text-left px-4 py-3 hover:bg-gray-700 text-sm">🕰 Сначала старые</button>
+            <button onclick="feed.setSort('unpopular')" class="w-full text-left px-4 py-3 hover:bg-gray-700 text-sm">❄️ Менее популярные</button>
+        </div>
+
+        <!-- Main Feed -->
+        <main id="feedContainer" class="flex-1 overflow-y-auto p-4 space-y-4 pb-24">
+            <!-- Loading State -->
+            <div id="feedLoader" class="flex justify-center mt-10">
+                <div class="loader"></div>
+            </div>
+            <!-- Posts will be injected here -->
+            <div id="postsList" class="space-y-4"></div>
+        </main>
+
+        <!-- Floating Action Button -->
+        <button onclick="ui.openPostModal()" class="absolute bottom-6 right-6 bg-brand-accent text-white w-14 h-14 rounded-full shadow-lg flex items-center justify-center hover:bg-blue-600 transition transform hover:scale-105 active:scale-95 z-10">
+            <i class="fa-solid fa-pen text-xl"></i>
+        </button>
+
+    </div>
+
+    <!-- MODALS -->
+
+    <!-- Auth Modal -->
+    <div id="authModal" class="fixed inset-0 bg-black/80 hidden z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-dark-card w-full max-w-sm rounded-xl p-6 border border-gray-700 shadow-2xl relative">
+            <button onclick="ui.closeModal('authModal')" class="absolute top-4 right-4 text-gray-500 hover:text-white"><i class="fa-solid fa-times"></i></button>
+            <h2 class="text-2xl font-bold mb-6 text-center">Вход в True Talk</h2>
+            
+            <div class="space-y-4">
+                <input type="email" id="emailInput" placeholder="Email" class="w-full bg-dark-input border border-gray-700 rounded-lg p-3 text-white focus:outline-none focus:border-brand-accent transition">
+                <input type="password" id="passwordInput" placeholder="Пароль" class="w-full bg-dark-input border border-gray-700 rounded-lg p-3 text-white focus:outline-none focus:border-brand-accent transition">
+                
+                <button onclick="authManager.loginEmail()" class="w-full bg-brand-accent hover:bg-blue-600 text-white font-bold py-3 rounded-lg transition">Войти</button>
+                <button onclick="authManager.registerEmail()" class="w-full border border-gray-600 hover:border-white text-gray-300 hover:text-white py-3 rounded-lg transition">Регистрация</button>
+                
+                <div class="relative flex py-2 items-center">
+                    <div class="flex-grow border-t border-gray-700"></div>
+                    <span class="flex-shrink mx-4 text-gray-500 text-xs">ИЛИ</span>
+                    <div class="flex-grow border-t border-gray-700"></div>
+                </div>
+
+                <button onclick="authManager.loginGoogle()" class="w-full bg-white text-black font-semibold py-3 rounded-lg flex items-center justify-center gap-2 hover:bg-gray-200 transition">
+                    <i class="fa-brands fa-google"></i> Google
+                </button>
+            </div>
+            <p id="authError" class="text-red-500 text-center mt-4 text-sm hidden"></p>
+        </div>
+    </div>
+
+    <!-- Create Post Modal -->
+    <div id="postModal" class="fixed inset-0 bg-black/80 hidden z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-dark-card w-full max-w-sm rounded-xl p-6 border border-gray-700 shadow-2xl relative">
+            <button onclick="ui.closeModal('postModal')" class="absolute top-4 right-4 text-gray-500 hover:text-white"><i class="fa-solid fa-times"></i></button>
+            <h2 class="text-xl font-bold mb-4">Новая мысль</h2>
+            <textarea id="postContent" maxlength="280" rows="5" class="w-full bg-dark-input border border-gray-700 rounded-lg p-3 text-white focus:outline-none focus:border-brand-accent transition resize-none" placeholder="О чем думаешь?"></textarea>
+            <div class="flex justify-between items-center mt-4">
+                <span class="text-xs text-gray-500" id="charCount">0/280</span>
+                <button onclick="feed.createPost()" class="bg-brand-accent hover:bg-blue-600 text-white px-6 py-2 rounded-lg transition">Опубликовать</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Profile Settings Modal -->
+    <div id="profileModal" class="fixed inset-0 bg-black/80 hidden z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-dark-card w-full max-w-sm rounded-xl p-6 border border-gray-700 shadow-2xl relative">
+            <button onclick="ui.closeModal('profileModal')" class="absolute top-4 right-4 text-gray-500 hover:text-white"><i class="fa-solid fa-times"></i></button>
+            <h2 class="text-xl font-bold mb-6">Настройки профиля</h2>
+            
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">Никнейм</label>
+                    <input type="text" id="profileNick" class="w-full bg-dark-input border border-gray-700 rounded-lg p-3 text-white focus:outline-none focus:border-brand-accent">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">Цвет акцента</label>
+                    <div class="flex items-center gap-3">
+                        <input type="color" id="profileColor" class="w-12 h-12 rounded cursor-pointer bg-transparent border-none">
+                        <span class="text-sm text-gray-400">Выберите цвет вашего ника</span>
+                    </div>
+                </div>
+                <button onclick="profile.save()" class="w-full bg-brand-accent hover:bg-blue-600 text-white font-bold py-3 rounded-lg transition">Сохранить</button>
+                <button onclick="authManager.logout()" class="w-full text-red-500 hover:bg-red-500/10 py-3 rounded-lg transition mt-2">Выйти</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Comments Modal -->
+    <div id="commentsModal" class="fixed inset-0 bg-black/80 hidden z-50 flex flex-col justify-end sm:justify-center p-0 sm:p-4 backdrop-blur-sm">
+        <div class="bg-dark-card w-full sm:max-w-md mx-auto rounded-t-xl sm:rounded-xl border-t sm:border border-gray-700 shadow-2xl flex flex-col max-h-[85vh]">
+            <!-- Header -->
+            <div class="p-4 border-b border-gray-700 flex justify-between items-center bg-dark-card rounded-t-xl z-10">
+                <h3 class="font-bold text-lg">Комментарии</h3>
+                <button onclick="ui.closeModal('commentsModal')" class="text-gray-500 hover:text-white"><i class="fa-solid fa-times text-xl"></i></button>
+            </div>
+            
+            <!-- Original Post Preview -->
+            <div id="commentPostPreview" class="p-4 bg-dark-bg/50 text-sm text-gray-300 border-b border-gray-800 italic truncate">
+                <!-- Text filled by JS -->
+            </div>
+
+            <!-- List -->
+            <div id="commentsList" class="flex-1 overflow-y-auto p-4 space-y-3">
+                <!-- Comments injected here -->
+            </div>
+
+            <!-- Input -->
+            <div class="p-4 border-t border-gray-700 bg-dark-card rounded-b-xl pb-6 sm:pb-4">
+                <div class="flex gap-2">
+                    <input type="text" id="commentInput" class="flex-1 bg-dark-input border border-gray-700 rounded-full px-4 py-2 text-white focus:outline-none focus:border-brand-accent text-sm" placeholder="Написать комментарий...">
+                    <button onclick="feed.addComment()" class="bg-brand-accent text-white w-10 h-10 rounded-full flex items-center justify-center hover:bg-blue-600 transition">
+                        <i class="fa-solid fa-paper-plane text-xs"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase & Logic -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-analytics.js";
+        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged, updateProfile, signInWithCustomToken, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, arrayUnion, arrayRemove, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- Config ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyDOaDVzzPjyYm4HWMND2XYWjLy_h4wty5s",
+            authDomain: "neuron-ecosystem-2025.firebaseapp.com",
+            projectId: "neuron-ecosystem-2025",
+            storageBucket: "neuron-ecosystem-2025.firebasestorage.app",
+            messagingSenderId: "589834476565",
+            appId: "1:589834476565:web:f657c13be1cbf8f3dd421c",
+            measurementId: "G-G4NKXZX1ZX"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        // Ensure appId is correctly retrieved for paths
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'true-talk-prod';
+
+        // --- State ---
+        let currentUser = null;
+        let postsData = []; // Store posts in memory for sorting
+        let currentSort = 'new';
+        let currentPostIdForComments = null;
+
+        // --- UI Manager ---
+        window.ui = {
+            toggleSortMenu: () => {
+                const menu = document.getElementById('sortMenu');
+                menu.classList.toggle('hidden');
+            },
+            
+            openAuth: () => {
+                document.getElementById('authModal').classList.remove('hidden');
+            },
+
+            openPostModal: () => {
+                if (!currentUser || currentUser.isAnonymous) return ui.openAuth();
+                document.getElementById('postModal').classList.remove('hidden');
+                document.getElementById('postContent').focus();
+            },
+
+            openProfile: () => {
+                if (!currentUser || currentUser.isAnonymous) return ui.openAuth();
+                document.getElementById('profileNick').value = currentUser.displayName || 'Аноним';
+                const savedColor = localStorage.getItem(`color_${currentUser.uid}`) || '#3b82f6';
+                document.getElementById('profileColor').value = savedColor;
+                document.getElementById('profileModal').classList.remove('hidden');
+            },
+
+            openComments: (postId, postText) => {
+                currentPostIdForComments = postId;
+                document.getElementById('commentPostPreview').textContent = `"${postText}"`;
+                document.getElementById('commentsModal').classList.remove('hidden');
+                feed.renderComments(postId);
+            },
+
+            closeModal: (id) => {
+                document.getElementById(id).classList.add('hidden');
+                if (id === 'commentsModal') currentPostIdForComments = null;
+            },
+
+            showAuthError: (msg) => {
+                const el = document.getElementById('authError');
+                el.textContent = msg;
+                el.classList.remove('hidden');
+            },
+
+            updateHeaderUser: () => {
+                const container = document.getElementById('userStatus');
+                if (currentUser && !currentUser.isAnonymous) {
+                    const userColor = localStorage.getItem(`color_${currentUser.uid}`) || '#3b82f6';
+                    container.innerHTML = `
+                        <div onclick="ui.openProfile()" class="flex items-center gap-2 hover:opacity-80 transition">
+                            <span class="text-right text-xs hidden sm:block">
+                                <div class="font-bold text-gray-200">${currentUser.displayName || 'User'}</div>
+                            </span>
+                            <div class="w-8 h-8 rounded-full flex items-center justify-center font-bold text-white shadow-md border border-gray-600" style="background-color: ${userColor}">
+                                ${(currentUser.displayName || 'U')[0].toUpperCase()}
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    container.innerHTML = `<button onclick="ui.openAuth()" class="text-xs bg-gray-800 px-3 py-1.5 rounded-full hover:bg-gray-700 transition border border-gray-600">Войти</button>`;
+                }
+            }
+        };
+
+        // --- Auth Manager ---
+        window.authManager = {
+            loginEmail: async () => {
+                const email = document.getElementById('emailInput').value;
+                const pass = document.getElementById('passwordInput').value;
+                try {
+                    await signInWithEmailAndPassword(auth, email, pass);
+                    ui.closeModal('authModal');
+                } catch (e) {
+                    ui.showAuthError("Ошибка входа: " + e.message);
+                }
+            },
+
+            registerEmail: async () => {
+                const email = document.getElementById('emailInput').value;
+                const pass = document.getElementById('passwordInput').value;
+                try {
+                    const res = await createUserWithEmailAndPassword(auth, email, pass);
+                    await updateProfile(res.user, { displayName: email.split('@')[0] });
+                    const randomColor = '#' + Math.floor(Math.random()*16777215).toString(16);
+                    localStorage.setItem(`color_${res.user.uid}`, randomColor);
+                    ui.closeModal('authModal');
+                } catch (e) {
+                    ui.showAuthError("Ошибка регистрации: " + e.message);
+                }
+            },
+
+            loginGoogle: async () => {
+                const provider = new GoogleAuthProvider();
+                try {
+                    const res = await signInWithPopup(auth, provider);
+                    if (!localStorage.getItem(`color_${res.user.uid}`)) {
+                        const randomColor = '#' + Math.floor(Math.random()*16777215).toString(16);
+                        localStorage.setItem(`color_${res.user.uid}`, randomColor);
+                    }
+                    ui.closeModal('authModal');
+                } catch (e) {
+                    console.error(e);
+                    ui.showAuthError("Ошибка Google: " + e.message);
+                }
+            },
+
+            logout: async () => {
+                await signOut(auth);
+                ui.closeModal('profileModal');
+                window.location.reload();
+            }
+        };
+
+        // --- Profile Logic ---
+        window.profile = {
+            save: async () => {
+                const newNick = document.getElementById('profileNick').value;
+                const newColor = document.getElementById('profileColor').value;
+                
+                if (currentUser) {
+                    if (newNick !== currentUser.displayName) {
+                        await updateProfile(currentUser, { displayName: newNick });
+                    }
+                    localStorage.setItem(`color_${currentUser.uid}`, newColor);
+                    ui.updateHeaderUser();
+                    ui.closeModal('profileModal');
+                }
+            }
+        };
+
+        // --- Feed Logic ---
+        window.feed = {
+            init: () => {
+                const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'posts');
+                
+                onSnapshot(colRef, (snapshot) => {
+                    document.getElementById('feedLoader').classList.add('hidden');
+                    postsData = [];
+                    snapshot.forEach(doc => {
+                        postsData.push({ id: doc.id, ...doc.data() });
+                    });
+                    feed.render();
+                    
+                    if(currentPostIdForComments) {
+                        feed.renderComments(currentPostIdForComments);
+                    }
+                }, (error) => {
+                    console.error("Error fetching posts:", error);
+                    document.getElementById('postsList').innerHTML = `<div class="text-center text-red-400 mt-10 p-4 border border-red-900 rounded bg-red-900/20">Ошибка загрузки ленты.<br>Попробуйте обновить страницу.</div>`;
+                });
+            },
+
+            setSort: (type) => {
+                currentSort = type;
+                document.getElementById('sortMenu').classList.add('hidden');
+                const btn = document.getElementById('sortBtn');
+                btn.classList.add('text-brand-accent');
+                setTimeout(() => btn.classList.remove('text-brand-accent'), 300);
+                feed.render();
+            },
+
+            render: () => {
+                const list = document.getElementById('postsList');
+                list.innerHTML = '';
+
+                let sortedPosts = [...postsData];
+                if (currentSort === 'new') sortedPosts.sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
+                if (currentSort === 'old') sortedPosts.sort((a, b) => (a.timestamp?.seconds || 0) - (b.timestamp?.seconds || 0));
+                if (currentSort === 'popular') sortedPosts.sort((a, b) => (b.likes?.length || 0) - (a.likes?.length || 0));
+                if (currentSort === 'unpopular') sortedPosts.sort((a, b) => (a.likes?.length || 0) - (b.likes?.length || 0));
+
+                if (sortedPosts.length === 0) {
+                    list.innerHTML = `<div class="text-center text-gray-500 mt-10 p-4 border border-dashed border-gray-700 rounded-lg">Здесь пока тихо...<br>Напиши первую мысль!</div>`;
+                    return;
+                }
+
+                sortedPosts.forEach(post => {
+                    const isLiked = currentUser && !currentUser.isAnonymous && post.likes && post.likes.includes(currentUser.uid);
+                    const commentsCount = post.comments ? post.comments.length : 0;
+                    const date = post.timestamp ? new Date(post.timestamp.seconds * 1000).toLocaleDateString('ru-RU', {day: 'numeric', month: 'short', hour: '2-digit', minute:'2-digit'}) : '';
+
+                    const el = document.createElement('div');
+                    el.className = "bg-dark-card rounded-xl p-4 border border-gray-800 shadow-sm hover:border-gray-700 transition";
+                    el.innerHTML = `
+                        <div class="flex justify-between items-start mb-2">
+                            <div class="flex items-center gap-2">
+                                <div class="w-2 h-8 rounded-full" style="background-color: ${post.authorColor}"></div>
+                                <div>
+                                    <div class="font-bold text-sm text-gray-200">${post.authorName}</div>
+                                    <div class="text-xs text-gray-500">${date}</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="text-gray-300 text-sm leading-relaxed mb-4 whitespace-pre-wrap">${post.content}</div>
+                        
+                        <div class="flex items-center gap-6 border-t border-gray-800 pt-3">
+                            <button onclick="feed.toggleLike('${post.id}')" class="flex items-center gap-2 text-sm transition ${isLiked ? 'text-brand-like' : 'text-gray-500 hover:text-gray-300'}">
+                                <i class="${isLiked ? 'fa-solid' : 'fa-regular'} fa-heart"></i>
+                                <span>${post.likes ? post.likes.length : 0}</span>
+                            </button>
+                            <button onclick="ui.openComments('${post.id}', '${post.content.replace(/'/g, "\\'").replace(/\n/g, ' ')}')" class="flex items-center gap-2 text-sm text-gray-500 hover:text-white transition">
+                                <i class="fa-regular fa-comment"></i>
+                                <span>${commentsCount}</span>
+                            </button>
+                        </div>
+                    `;
+                    list.appendChild(el);
+                });
+            },
+
+            createPost: async () => {
+                if (!currentUser || currentUser.isAnonymous) return ui.openAuth();
+                const content = document.getElementById('postContent').value.trim();
+                if (!content) return;
+
+                const userColor = localStorage.getItem(`color_${currentUser.uid}`) || '#3b82f6';
+                
+                try {
+                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'posts'), {
+                        content: content,
+                        authorId: currentUser.uid,
+                        authorName: currentUser.displayName,
+                        authorColor: userColor,
+                        timestamp: new Date(),
+                        likes: [],
+                        comments: [] 
+                    });
+                    
+                    document.getElementById('postContent').value = '';
+                    ui.closeModal('postModal');
+                } catch (e) {
+                    alert("Ошибка публикации: " + e.message);
+                }
+            },
+
+            toggleLike: async (postId) => {
+                if (!currentUser || currentUser.isAnonymous) return ui.openAuth();
+
+                const post = postsData.find(p => p.id === postId);
+                if (!post) return;
+
+                const isLiked = post.likes && post.likes.includes(currentUser.uid);
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'posts', postId);
+
+                try {
+                    if (isLiked) {
+                        await updateDoc(docRef, { likes: arrayRemove(currentUser.uid) });
+                    } else {
+                        await updateDoc(docRef, { likes: arrayUnion(currentUser.uid) });
+                    }
+                } catch (e) {
+                    console.error("Like error", e);
+                }
+            },
+
+            renderComments: (postId) => {
+                const list = document.getElementById('commentsList');
+                const post = postsData.find(p => p.id === postId);
+                list.innerHTML = '';
+
+                if (!post || !post.comments || post.comments.length === 0) {
+                    list.innerHTML = `<div class="text-center text-xs text-gray-600 mt-4">Нет комментариев</div>`;
+                    return;
+                }
+
+                post.comments.forEach(c => {
+                    const el = document.createElement('div');
+                    el.className = "bg-dark-bg/30 p-3 rounded-lg border border-gray-800/50";
+                    el.innerHTML = `
+                        <div class="flex items-center gap-2 mb-1">
+                            <span class="w-2 h-2 rounded-full" style="background-color: ${c.authorColor}"></span>
+                            <span class="text-xs font-bold text-gray-400">${c.authorName}</span>
+                        </div>
+                        <div class="text-sm text-gray-300">${c.text}</div>
+                    `;
+                    list.appendChild(el);
+                });
+                list.scrollTop = list.scrollHeight;
+            },
+
+            addComment: async () => {
+                if (!currentUser || currentUser.isAnonymous) return ui.openAuth();
+                if (!currentPostIdForComments) return;
+
+                const input = document.getElementById('commentInput');
+                const text = input.value.trim();
+                if (!text) return;
+
+                const userColor = localStorage.getItem(`color_${currentUser.uid}`) || '#3b82f6';
+                const commentObj = {
+                    text: text,
+                    authorId: currentUser.uid,
+                    authorName: currentUser.displayName,
+                    authorColor: userColor,
+                    timestamp: Date.now()
+                };
+
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'posts', currentPostIdForComments);
+
+                try {
+                    await updateDoc(docRef, { comments: arrayUnion(commentObj) });
+                    input.value = '';
+                } catch (e) {
+                    console.error("Comment error", e);
+                }
+            }
+        };
+
+        // --- Init App (Fix for Auth Permissions and Fallback) ---
+        const initApp = async () => {
+            onAuthStateChanged(auth, (user) => {
+                currentUser = user;
+                ui.updateHeaderUser();
+            });
+
+            try {
+                // RULE 3: Auth First with Fallback
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    try {
+                        await signInWithCustomToken(auth, __initial_auth_token);
+                    } catch (tokenError) {
+                        console.warn("Custom token failed, trying anonymous:", tokenError);
+                        // Fallback to anonymous if token fails (e.g. mismatch or expired)
+                        await signInAnonymously(auth);
+                    }
+                } else if (!auth.currentUser) {
+                    // Try anonymous auth if not signed in
+                    await signInAnonymously(auth);
+                }
+            } catch (error) {
+                console.error("Auth initialization failed:", error);
+            }
+
+            // Start Feed ONLY after auth attempt
+            feed.init();
+        };
+
+        // Toggle Sort Menu
+        document.getElementById('sortBtn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            ui.toggleSortMenu();
+        });
+        
+        document.addEventListener('click', () => {
+            document.getElementById('sortMenu').classList.add('hidden');
+        });
+
+        document.getElementById('postContent').addEventListener('input', function() {
+            document.getElementById('charCount').textContent = `${this.value.length}/280`;
+        });
+
+        // Start Application
+        initApp();
+
+    </script>
+</body>
+</html>
